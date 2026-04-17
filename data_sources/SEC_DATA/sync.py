@@ -38,6 +38,7 @@ from .submissions import (
     first_10k_size_bytes,
     format_cik10,
     list_10k_filings,
+    primary_document_saved_basename,
 )
 from .tickers import iter_ticker_rows
 from .xbrl import fetch_company_facts
@@ -89,8 +90,7 @@ def sync_company(
 ) -> dict[str, Any]:
     """
     Store submissions (trimmed), 10-K index, companyfacts (10-K + date window),
-    consolidated narrative JSON, and primary 10-K documents under a
-    timestamped run folder.
+    consolidated narrative JSON, and primary 10-K documents under a timestamped run folder.
 
     Layout: ``{store_root}/{UTC_RUN}/{TICKER}/`` with ``ALL_NARRATIVE_INFO.json``
     (when narrative export is on) and ``tenk_documents/`` for primary filings
@@ -152,12 +152,12 @@ def sync_company(
     all_narrative_filings: list[dict[str, Any]] = []
     fetch_warnings: list[dict[str, Any]] = []
     n_tenk = len(tenks)
-    for i, t in enumerate(tenks):
+    for i, t in enumerate(tenks, start=1):
         if progress_stream is not None and n_tenk:
             write_pull_filing_progress(
                 progress_stream,
                 label=plabel,
-                filing_index=i + 1,
+                filing_index=i,
                 filing_total=n_tenk,
                 accession=t.accession_number,
             )
@@ -177,7 +177,7 @@ def sync_company(
                 }
                 fetch_warnings.append(w)
                 _log_fetch_skip(
-                    "skipped 10-K filing after primary document download failed",
+                    "skipped filing after primary document download failed",
                     ticker=plabel,
                     cik10=cik10,
                     extra=f"accession={t.accession_number} {exc!s}",
@@ -185,7 +185,7 @@ def sync_company(
                 continue
         saved_name: str | None = None
         if download_tenk_primary_documents and raw:
-            saved_name = f"{t.filing_date}_{acc_nd}_{_safe_filename_component(t.primary_document)}"
+            saved_name = primary_document_saved_basename(t)
             primary_path = doc_dir / saved_name
             if raw[:4] == b"%PDF" or t.primary_document.lower().endswith(".pdf"):
                 primary_path.write_bytes(raw)
@@ -200,6 +200,7 @@ def sync_company(
             blocks = extract_ix_nonnumeric_narratives(text_for_ix)
             slim_blocks = filter_narrative_blocks(blocks, concept_filter=narrative_concept_filter)
             filing_entry = {
+                "form": t.form,
                 "accession_number": t.accession_number,
                 "filing_date": t.filing_date,
                 "report_date": t.report_date,
@@ -213,6 +214,7 @@ def sync_company(
             all_narrative_filings.append(filing_entry)
             narrative_filings.append(
                 {
+                    "form": t.form,
                     "accession_number": t.accession_number,
                     "filing_date": t.filing_date,
                     "concept_count": len(slim_blocks),

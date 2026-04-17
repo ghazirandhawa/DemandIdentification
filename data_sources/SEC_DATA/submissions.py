@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Iterator
 
 from .client import EdgarClient
+from .filing_window import filing_date_on_or_after
 
 _SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik10}.json"
 
 _TENK_FORMS = frozenset({"10-K", "10-K/A"})
+FORMS_10K = _TENK_FORMS
 
 
 def format_cik10(cik: str | int) -> str:
@@ -25,6 +29,14 @@ def cik_for_archives_path(cik10: str) -> str:
 
 def accession_no_dashes(accession_number: str) -> str:
     return accession_number.replace("-", "")
+
+
+def primary_document_saved_basename(t: TenKFiling) -> str:
+    """Basename used under ``tenk_documents/`` for a primary filing (matches ``sync_company``)."""
+    acc_nd = accession_no_dashes(t.accession_number)
+    safe = re.sub(r"[^\w.\-]+", "_", (t.primary_document or "").strip())
+    safe = (safe or "file")[:140]
+    return f"{t.filing_date}_{acc_nd}_{safe}"
 
 
 def archives_document_url(
@@ -167,6 +179,81 @@ def _merge_additional_files(
     return out
 
 
+def _submission_row_to_filing(cik10: str, company_name: str, row: dict[str, Any]) -> TenKFiling | None:
+    acc = row.get("accessionNumber")
+    doc = row.get("primaryDocument")
+    form = row.get("form")
+    if not acc or not doc or not form:
+        return None
+    sz_raw = row.get("size")
+    size_b: int | None
+    try:
+        size_b = int(sz_raw) if sz_raw is not None else None
+    except (TypeError, ValueError):
+        size_b = None
+    return TenKFiling(
+        cik10=cik10,
+        name=company_name,
+        form=str(form),
+        filing_date=str(row.get("filingDate", "")),
+        report_date=row.get("reportDate"),
+        accession_number=str(acc),
+        primary_document=str(doc),
+        primary_doc_description=row.get("primaryDocDescription"),
+        filing_index_url=_filing_index_url(cik10, str(acc)),
+        primary_document_url=archives_document_url(
+            cik10=cik10,
+            accession_number=str(acc),
+            primary_document=str(doc),
+        ),
+        is_xbrl=row.get("isXBRL"),
+        is_inline_xbrl=row.get("isInlineXBRL"),
+        file_number=row.get("fileNumber"),
+        film_number=row.get("filmNumber"),
+        size_bytes=size_b,
+        acceptance_datetime=row.get("acceptanceDateTime"),
+        act=row.get("act"),
+        items=row.get("items"),
+        core_type=row.get("core_type"),
+        is_xbrl_numeric=row.get("isXBRLNumeric"),
+    )
+
+
+def iter_filings_from_submissions_data(
+    data: dict[str, Any],
+    forms: frozenset[str],
+) -> Iterator[TenKFiling]:
+    """
+    Yield filings whose ``form`` is in ``forms`` from a single submissions JSON object
+    (e.g. trimmed ``submissions.json`` on disk). Order follows SEC ``filings.recent`` row order.
+    """
+    cik10 = format_cik10(data.get("cik", 0))
+    company_name = str(data.get("name", ""))
+    for row in _recent_rows(data):
+        form = row.get("form")
+        if form not in forms:
+            continue
+        t = _submission_row_to_filing(cik10, company_name, row)
+        if t is not None:
+            yield t
+
+
+def list_top_annual_filings_from_trimmed(
+    data: dict[str, Any],
+    earliest: date,
+    *,
+    limit: int = 1,
+) -> list[TenKFiling]:
+    """Latest ``limit`` 10-K / 10-K/A rows (within ``earliest``), filing date descending."""
+    rows = [
+        t
+        for t in iter_filings_from_submissions_data(data, FORMS_10K)
+        if filing_date_on_or_after(t.filing_date, earliest)
+    ]
+    rows.sort(key=lambda t: t.filing_date, reverse=True)
+    return rows[: max(0, int(limit))]
+
+
 def iter_10k_filings(
     client: EdgarClient,
     cik: str | int,
@@ -189,46 +276,7 @@ def iter_10k_filings(
     for chunk in chunks:
         cik10 = format_cik10(chunk.get("cik", cik10))
         company_name = str(chunk.get("name", company_name))
-        for row in _recent_rows(chunk):
-            form = row.get("form")
-            if form not in _TENK_FORMS:
-                continue
-            acc = row.get("accessionNumber")
-            doc = row.get("primaryDocument")
-            if not acc or not doc:
-                continue
-            sz_raw = row.get("size")
-            size_b: int | None
-            try:
-                size_b = int(sz_raw) if sz_raw is not None else None
-            except (TypeError, ValueError):
-                size_b = None
-            yield TenKFiling(
-                cik10=cik10,
-                name=company_name,
-                form=str(form),
-                filing_date=str(row.get("filingDate", "")),
-                report_date=row.get("reportDate"),
-                accession_number=str(acc),
-                primary_document=str(doc),
-                primary_doc_description=row.get("primaryDocDescription"),
-                filing_index_url=_filing_index_url(cik10, str(acc)),
-                primary_document_url=archives_document_url(
-                    cik10=cik10,
-                    accession_number=str(acc),
-                    primary_document=str(doc),
-                ),
-                is_xbrl=row.get("isXBRL"),
-                is_inline_xbrl=row.get("isInlineXBRL"),
-                file_number=row.get("fileNumber"),
-                film_number=row.get("filmNumber"),
-                size_bytes=size_b,
-                acceptance_datetime=row.get("acceptanceDateTime"),
-                act=row.get("act"),
-                items=row.get("items"),
-                core_type=row.get("core_type"),
-                is_xbrl_numeric=row.get("isXBRLNumeric"),
-            )
+        yield from iter_filings_from_submissions_data(chunk, _TENK_FORMS)
 
 
 def first_10k_size_bytes(submissions_data: dict[str, Any]) -> int | None:

@@ -1,0 +1,29 @@
+Demand Identification Engine
+Problem
+Potential demand for Data Pilot’s services often exists before a formal RFP, tender, or inbound lead appears. Signals such as job postings, startup activity, transformation initiatives, new funding, hiring patterns, and publicly visible business problems can indicate that a company may need support in data, analytics, AI/ML, automation, or transformation. Today, identifying and acting on these signals is mostly manual, inconsistent, and dependent on individual effort.
+Objective
+Systematically identify hidden or early-stage demand for Data Pilot’s capabilities, rank opportunities based on fit and relevance, and create an approved outreach plan that can then be executed in a structured way.
+In scope
+•	Search for demand signals across sources such as job postings, startup activity, public project announcements, transformation initiatives, and other visible indicators of business need 
+•	Identify situations where Data Pilot can help through its capabilities in data, analytics, AI/ML, automation, or broader transformation support 
+•	Build a structured list of target opportunities, companies, or accounts 
+•	Rank them based on ICP fit, prior experience relevance, likely need, strategic value, and whether the opportunity appears to be an individual hire, project, or broader transformation initiative 
+•	Recommend the most relevant Data Pilot credentials, experience, or angle for outreach 
+•	Create a draft outreach plan and messaging approach for approval 
+•	Execute the approved outreach in a structured workflow 
+Primary users
+Sales, strategy, founder-led sales team, marketing
+Expected business impact
+•	Earlier identification of relevant opportunities before they become formal buying processes 
+•	More proactive pipeline generation 
+•	Better targeting based on fit and relevance 
+•	Lower manual research effort 
+•	Stronger alignment between market signals and outbound action 
+Success metrics
+•	Number of qualified demand signals identified per week 
+•	Percentage of identified opportunities that match ICP criteria 
+•	Time saved on manual market research 
+•	Number of approved outreach plans generated 
+•	Number of meetings, replies, or qualified conversations created from identified demand signals 
+Notes for the project team
+This project should focus on demand discovery before formal opportunity creation. A useful example is asking the agent to find transformation initiatives in traditional mid-market businesses where Data Pilot’s data and applied AI capabilities are relevant. The output should not just be a raw list. It should include prioritization, reasoning, suggested angle, and a clear outreach plan that can be reviewed before execution.
